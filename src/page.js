@@ -14,7 +14,7 @@ export async function readText(page, { offset = 0, max = 15000 } = {}) {
 
 /**
  * List interactive elements and tag each with data-foxpilot-ref so later calls can target it.
- * Refs are renumbered on every call, so always use refs from the latest firefox_read.
+ * Refs are renumbered on every call, so always use refs from the latest browser_read.
  */
 export async function readInteractive(page, { max = 250 } = {}) {
   return page.evaluate((max) => {
@@ -91,7 +91,7 @@ export async function findText(page, query, { max = 30 } = {}) {
 export async function resolveTarget(page, { ref, selector, text }) {
   if (ref != null) {
     const s = `[data-foxpilot-ref="${ref}"]`;
-    if (!(await page.$(s))) throw new Error(`Ref ${ref} not found (page changed?). Call firefox_read mode=interactive again.`);
+    if (!(await page.$(s))) throw new Error(`Ref ${ref} not found (page changed?). Call browser_read mode=interactive again.`);
     return s;
   }
   if (selector) {

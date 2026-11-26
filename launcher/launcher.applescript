@@ -1,7 +1,8 @@
--- foxpilot launcher: start Firefox (or a fork such as Zen) with WebDriver BiDi on 127.0.0.1:9222,
--- so the foxpilot MCP server can drive it. If the browser already runs without it, offer a restart
--- (tabs come back via session restore). APP_NAME is filled in by scripts/make-launcher.sh.
+-- foxpilot launcher: start a browser with remote debugging on 127.0.0.1:9222 so the foxpilot MCP
+-- server can drive it. If the browser already runs without it, offer a restart (tabs come back via
+-- session restore). APP_NAME and DEBUG_FLAG are filled in by scripts/make-launcher.sh.
 property appName : "APP_NAME"
+property debugFlag : "DEBUG_FLAG"
 
 on portOpen()
 	try
@@ -25,4 +26,4 @@ if application appName is running then
 		delay 0.5
 	end repeat
 end if
-do shell script "open -a " & quoted form of appName & " --args --remote-debugging-port 9222"
+do shell script "open -a " & quoted form of appName & " --args " & debugFlag

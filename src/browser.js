@@ -1,4 +1,6 @@
-// Connection to a running Firefox (or fork: Zen, LibreWolf, ...) over WebDriver BiDi, plus tab bookkeeping.
+// Connection to a running browser plus tab bookkeeping.
+// Firefox and forks (Zen, LibreWolf, ...) are driven over WebDriver BiDi; Chromium browsers
+// (Chrome, Helium, Brave, Edge, ...) over CDP. The engine is detected on the port, see detectEngine().
 //
 // Firefox allows only ONE BiDi session at a time, and a session is not released if the client
 // dies without session.end. So we connect only while working, end the session after a short idle
@@ -6,7 +8,7 @@
 import puppeteer from 'puppeteer-core';
 
 export const PORT = Number(process.env.FOXPILOT_PORT || 9222);
-const ENDPOINT = `ws://127.0.0.1:${PORT}/session`;
+const PROTOCOL = (process.env.FOXPILOT_PROTOCOL || 'auto').toLowerCase(); // auto | bidi | cdp
 const IDLE_MS = Number(process.env.FOXPILOT_IDLE_MS || 8000);
 const BUSY_WAIT_MS = 20000;
 
@@ -17,7 +19,7 @@ let connecting = null;
 let idleTimer = null;
 let busy = 0;
 
-// Tab ids are short numbers mapped to BiDi browsing-context ids, which stay stable across
+// Tab ids are short numbers mapped to browsing-context / target ids, which stay stable across
 // reconnects, so "tab 3" means the same tab for the whole MCP server lifetime.
 const shortByContext = new Map();
 const contextByShort = new Map();
@@ -31,11 +33,43 @@ function withTimeout(promise, ms, fallback) {
   return Promise.race([promise, sleep(ms).then(() => fallback)]);
 }
 
+/**
+ * Chromium answers GET /json/version with JSON containing webSocketDebuggerUrl.
+ * The Firefox Remote Agent answers that path with 404, so anything else means BiDi.
+ * Returns { protocol: 'cdp', endpoint } | { protocol: 'bidi', endpoint } | null (nothing listening).
+ */
+async function detectEngine() {
+  const bidi = { protocol: 'bidi', endpoint: `ws://127.0.0.1:${PORT}/session` };
+  let res;
+  try {
+    res = await fetch(`http://127.0.0.1:${PORT}/json/version`, { signal: AbortSignal.timeout(2000) });
+  } catch {
+    return null;
+  }
+  if (PROTOCOL === 'bidi') return bidi;
+  const info = res.ok ? await res.json().catch(() => null) : null;
+  if (info?.webSocketDebuggerUrl) return { protocol: 'cdp', endpoint: info.webSocketDebuggerUrl, name: info.Browser };
+  if (PROTOCOL === 'cdp') throw new Error(`FOXPILOT_PROTOCOL=cdp, but port ${PORT} does not speak CDP.`);
+  return bidi;
+}
+
+function notReachable(detail) {
+  return new BrowserNotReachable(
+    `Cannot reach a browser on 127.0.0.1:${PORT} (${detail}). ` +
+      `Start it with remote debugging: quit it and open the foxpilot launcher ` +
+      `("<Browser> (AI)" in ~/Applications, made by npm run launcher -- <App name>), or run: ` +
+      `open -a <App> --args --remote-debugging-port ${PORT}  (Firefox and forks) / ` +
+      `--remote-debugging-port=${PORT}  (Chromium browsers).`
+  );
+}
+
 async function connectOnce() {
+  const engine = await detectEngine();
+  if (!engine) throw notReachable('nothing is listening');
   try {
     return await puppeteer.connect({
-      browserWSEndpoint: ENDPOINT,
-      protocol: 'webDriverBiDi',
+      browserWSEndpoint: engine.endpoint,
+      protocol: engine.protocol === 'bidi' ? 'webDriverBiDi' : 'cdp',
       defaultViewport: null,
     });
   } catch (err) {
@@ -43,12 +77,7 @@ async function connectOnce() {
       err.busy = true;
       throw err;
     }
-    throw new BrowserNotReachable(
-      `Cannot reach the browser on 127.0.0.1:${PORT} (${err.message.split('\n')[0]}). ` +
-        `Firefox/Zen must run with remote debugging: quit it and start it via the foxpilot launcher ` +
-        `("Firefox (AI)" / "Zen (AI)" in ~/Applications), or run: ` +
-        `open -a Firefox --args --remote-debugging-port ${PORT}  (use -a Zen for Zen).`
-    );
+    throw notReachable(err.message.split('\n')[0]);
   }
 }
 
@@ -137,7 +166,7 @@ export async function getPage(tabId) {
   let page;
   if (tabId != null) {
     page = byContext(contextByShort.get(String(tabId)));
-    if (!page) throw new Error(`No tab with id ${tabId}. Call firefox_tabs to see current tabs.`);
+    if (!page) throw new Error(`No tab with id ${tabId}. Call browser_tabs to see current tabs.`);
   } else {
     page = currentContext && byContext(currentContext);
     if (!page) {

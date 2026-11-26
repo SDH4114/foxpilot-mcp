@@ -1,14 +1,17 @@
 {
   "name": "foxpilot-mcp",
-  "version": "0.1.0",
-  "description": "MCP server that lets Claude and other AI agents control your real Firefox (or Zen) browser over WebDriver BiDi — no extension needed",
+  "version": "0.2.0",
+  "description": "MCP server that lets Claude and other AI agents control your real browser — Firefox, Zen and other Firefox forks over WebDriver BiDi, Chromium browsers (Chrome, Helium, Brave, Edge) over CDP. No extension needed.",
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "browser-automation",
     "firefox",
     "zen-browser",
+    "chromium",
+    "helium",
     "webdriver-bidi",
-    "browser-automation",
+    "cdp",
     "claude",
     "ai-agent"
   ],

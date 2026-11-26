@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// foxpilot-mcp: MCP server (stdio) exposing tools that drive the user's running Firefox (or a Firefox fork such as Zen).
+// foxpilot-mcp: MCP server (stdio) exposing tools that drive the user's running browser (Firefox/Zen over BiDi, Chromium over CDP).
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { getPage, listTabs, newTab, settle, idOf, withBrowser, release, BrowserNotReachable } from './firefox.js';
+import { getPage, listTabs, newTab, settle, idOf, withBrowser, release, BrowserNotReachable } from './browser.js';
 import { readText, readInteractive, findText, resolveTarget } from './page.js';
 
-const server = new McpServer({ name: 'foxpilot', version: '0.1.0' });
+const server = new McpServer({ name: 'foxpilot', version: '0.2.0' });
 
 const text = (s) => ({ content: [{ type: 'text', text: s }] });
 const fail = (s) => ({ content: [{ type: 'text', text: s }], isError: true });
@@ -32,21 +32,21 @@ async function where(page) {
   return `tab ${idOf(page)}: ${title} — ${page.url()}`;
 }
 
-const tabId = z.string().optional().describe('Tab id from firefox_tabs. Default: the tab last used, else the visible one.');
+const tabId = z.string().optional().describe('Tab id from browser_tabs. Default: the tab last used, else the visible one.');
 const target = {
-  ref: z.number().int().optional().describe('Element ref from firefox_read mode=interactive'),
+  ref: z.number().int().optional().describe('Element ref from browser_read mode=interactive'),
   selector: z.string().optional().describe('CSS selector'),
   text: z.string().optional().describe('Visible text of a link/button to click'),
 };
 
-tool('firefox_tabs', 'List open tabs in the user\'s Firefox browser (id, title, url; * = visible, > = current target).', {},
+tool('browser_tabs', 'List open tabs in the user\'s browser (id, title, url; * = visible, > = current target).', {},
   async () => {
     const tabs = await listTabs();
     if (!tabs.length) return text('No tabs.');
     return text(tabs.map((t) => `${t.current ? '>' : ' '}${t.visible ? '*' : ' '} [${t.id}] ${t.title || '(no title)'} — ${t.url}`).join('\n'));
   }, { readOnly: true });
 
-tool('firefox_open', 'Open a URL in the user\'s Firefox browser. Opens a new tab unless tabId is given (then navigates that tab).',
+tool('browser_open', 'Open a URL in the user\'s browser. Opens a new tab unless tabId is given (then navigates that tab).',
   { url: z.string().describe('Full URL, e.g. https://example.com'), tabId },
   async ({ url, tabId }) => {
     const page = tabId ? await getPage(tabId) : await newTab();
@@ -64,7 +64,7 @@ const engines = {
   duckduckgo: 'https://duckduckgo.com/?q=',
   bing: 'https://www.bing.com/search?q=',
 };
-tool('firefox_search', 'Web search in a new tab of the user\'s Firefox browser; returns the result page text.',
+tool('browser_search', 'Web search in a new tab of the user\'s browser; returns the result page text.',
   { query: z.string(), engine: z.enum(['google', 'duckduckgo', 'bing']).optional().describe('Default: google') },
   async ({ query, engine = 'google' }) => {
     const page = await newTab();
@@ -73,7 +73,7 @@ tool('firefox_search', 'Web search in a new tab of the user\'s Firefox browser; 
     return text(`${await where(page)}\n\n${await readText(page, { max: 8000 })}`);
   });
 
-tool('firefox_read', 'Read the page. mode=text: visible text (paged by offset). mode=interactive: numbered list of links, buttons and fields; use the numbers as ref in firefox_click/firefox_type.',
+tool('browser_read', 'Read the page. mode=text: visible text (paged by offset). mode=interactive: numbered list of links, buttons and fields; use the numbers as ref in browser_click/browser_type.',
   {
     tabId,
     mode: z.enum(['text', 'interactive']).optional().describe('Default: text'),
@@ -85,14 +85,14 @@ tool('firefox_read', 'Read the page. mode=text: visible text (paged by offset). 
     return text(`${await where(page)}\n\n${body}`);
   }, { readOnly: true });
 
-tool('firefox_find', 'Find text on the current page; returns matching lines with context.',
+tool('browser_find', 'Find text on the current page; returns matching lines with context.',
   { query: z.string(), tabId },
   async ({ query, tabId }) => {
     const page = await getPage(tabId);
     return text(await findText(page, query));
   }, { readOnly: true });
 
-tool('firefox_click', 'Click an element by ref (from firefox_read interactive), CSS selector, or visible text.',
+tool('browser_click', 'Click an element by ref (from browser_read interactive), CSS selector, or visible text.',
   { ...target, tabId },
   async ({ tabId, ...t }) => {
     const page = await getPage(tabId);
@@ -103,7 +103,7 @@ tool('firefox_click', 'Click an element by ref (from firefox_read interactive), 
     return text(`Clicked. ${await where(page)}`);
   });
 
-tool('firefox_type', 'Type into a field (by ref or selector). Replaces existing value unless append=true. submit=true presses Enter after.',
+tool('browser_type', 'Type into a field (by ref or selector). Replaces existing value unless append=true. submit=true presses Enter after.',
   {
     ref: target.ref, selector: target.selector, tabId,
     value: z.string().describe('Text to type'),
@@ -130,7 +130,7 @@ tool('firefox_type', 'Type into a field (by ref or selector). Replaces existing 
     return text(`Typed${submit ? ' and submitted' : ''}. ${await where(page)}`);
   });
 
-tool('firefox_key', 'Press a key or combo in the page, e.g. "Enter", "Escape", "Tab", "ArrowDown", "Meta+a".',
+tool('browser_key', 'Press a key or combo in the page, e.g. "Enter", "Escape", "Tab", "ArrowDown", "Meta+a".',
   { key: z.string(), tabId },
   async ({ key, tabId }) => {
     const page = await getPage(tabId);
@@ -144,7 +144,7 @@ tool('firefox_key', 'Press a key or combo in the page, e.g. "Enter", "Escape", "
     return text(`Pressed ${key}. ${await where(page)}`);
   });
 
-tool('firefox_scroll', 'Scroll the page.',
+tool('browser_scroll', 'Scroll the page.',
   { direction: z.enum(['down', 'up', 'top', 'bottom']), tabId },
   async ({ direction, tabId }) => {
     const page = await getPage(tabId);
@@ -159,7 +159,7 @@ tool('firefox_scroll', 'Scroll the page.',
     return text(`Scrolled ${direction}, position ${pos}.`);
   });
 
-tool('firefox_screenshot', 'Screenshot of the tab (PNG). Use only when the visual layout matters; prefer firefox_read.',
+tool('browser_screenshot', 'Screenshot of the tab (PNG). Use only when the visual layout matters; prefer browser_read.',
   { tabId, fullPage: z.boolean().optional() },
   async ({ tabId, fullPage = false }) => {
     const page = await getPage(tabId);
@@ -167,7 +167,7 @@ tool('firefox_screenshot', 'Screenshot of the tab (PNG). Use only when the visua
     return { content: [{ type: 'image', data, mimeType: 'image/png' }, { type: 'text', text: await where(page) }] };
   }, { readOnly: true });
 
-tool('firefox_wait', 'Wait until a selector or text appears on the page.',
+tool('browser_wait', 'Wait until a selector or text appears on the page.',
   { selector: z.string().optional(), text: z.string().optional(), timeoutMs: z.number().int().optional().describe('Default 10000'), tabId },
   async ({ selector, text: t, timeoutMs = 10000, tabId }) => {
     const page = await getPage(tabId);
@@ -177,7 +177,7 @@ tool('firefox_wait', 'Wait until a selector or text appears on the page.',
     return text(`Ready. ${await where(page)}`);
   }, { readOnly: true });
 
-tool('firefox_eval', 'Run a JavaScript expression in the page and return the JSON result. Fallback when other tools are not enough.',
+tool('browser_eval', 'Run a JavaScript expression in the page and return the JSON result. Fallback when other tools are not enough.',
   { js: z.string().describe('Expression or IIFE, e.g. "document.title" or "(() => [...document.links].length)()"'), tabId },
   async ({ js, tabId }) => {
     const page = await getPage(tabId);
@@ -186,7 +186,7 @@ tool('firefox_eval', 'Run a JavaScript expression in the page and return the JSO
     return text(out.length > 20000 ? out.slice(0, 20000) + '\n[...truncated]' : out);
   });
 
-tool('firefox_close', 'Close a tab. Only close tabs you opened, unless the user asked.',
+tool('browser_close', 'Close a tab. Only close tabs you opened, unless the user asked.',
   { tabId: z.string() },
   async ({ tabId }) => {
     const page = await getPage(tabId);
@@ -194,7 +194,7 @@ tool('firefox_close', 'Close a tab. Only close tabs you opened, unless the user 
     return text(`Closed tab ${tabId}.`);
   });
 
-// End the BiDi session on any shutdown path, otherwise Firefox keeps it and refuses new clients.
+// End the browser session on any shutdown path: Firefox keeps an unclosed BiDi session and refuses new clients.
 let closing = false;
 async function shutdown() {
   if (closing) return;
