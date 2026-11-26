@@ -1,0 +1,39 @@
+{
+  "name": "foxpilot-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets Claude and other AI agents control your real Firefox (or Zen) browser over WebDriver BiDi — no extension needed",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "firefox",
+    "zen-browser",
+    "webdriver-bidi",
+    "browser-automation",
+    "claude",
+    "ai-agent"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SDH4114/foxpilot-mcp.git"
+  },
+  "homepage": "https://github.com/SDH4114/foxpilot-mcp#readme",
+  "type": "module",
+  "bin": {
+    "foxpilot-mcp": "src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "smoke": "node scripts/smoke.mjs",
+    "launcher": "scripts/make-launcher.sh"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "puppeteer-core": "^25.19.0",
+    "zod": "^4.6.7"
+  }
+}
