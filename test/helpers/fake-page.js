@@ -12,6 +12,13 @@ import { Window } from 'happy-dom';
 
 export function makePage(html, { innerHeight = 800 } = {}) {
   const win = new Window({ innerHeight });
+  // Minimal JSHandle/ElementHandle stand-ins: asElement() gives the DOM element (or null for a
+  // non-element result), jsonValue() the plain value.
+  const wrap = (v) => ({
+    asElement: () => (v instanceof win.Element ? v : null),
+    jsonValue: async () => v,
+    dispose: async () => {},
+  });
   win.document.body.innerHTML = html;
   win.HTMLElement.prototype.getBoundingClientRect = function () {
     const spec = this.getAttribute('data-test-rect');
@@ -33,6 +40,12 @@ export function makePage(html, { innerHeight = 800 } = {}) {
     },
     async $(sel) {
       return win.document.querySelector(sel);
+    },
+    async evaluateHandle(fn, ...args) {
+      return wrap(await this.evaluate(fn, ...args));
+    },
+    async $$(sel) {
+      return [...win.document.querySelectorAll(sel)].map(wrap);
     },
   };
 }

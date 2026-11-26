@@ -99,13 +99,15 @@ describe('argument validation', () => {
   // The SDK reports invalid arguments either as an isError result or by rejecting; accept both,
   // but require that the message names the problem and that no browser connection was attempted.
   async function invalid(name, args) {
+    let r;
     try {
-      const r = await client.callTool({ name, arguments: args });
-      assert.equal(r.isError, true, 'expected isError');
-      return textOf(r);
+      r = await client.callTool({ name, arguments: args });
     } catch (e) {
-      return String(e.message);
+      return String(e.message); // rejected by the SDK: that is a rejection too
     }
+    // Outside the try, so a call that was wrongly accepted fails the test instead of being caught.
+    assert.equal(r.isError, true, `expected ${name} ${JSON.stringify(args)} to be rejected, got: ${textOf(r)}`);
+    return textOf(r);
   }
 
   test('missing required field', async () => {
@@ -130,6 +132,22 @@ describe('argument validation', () => {
     const msg = await invalid('browser_read', { offset: -1 });
     assert.match(msg, /offset|invalid|>=/i);
     assert.doesNotMatch(msg, /Cannot reach a browser/);
+  });
+
+  test('browser_wait timeoutMs must be 1..60000 (0 would mean "wait forever" in puppeteer)', async () => {
+    for (const timeoutMs of [0, -5, 60001]) {
+      const msg = await invalid('browser_wait', { timeoutMs });
+      assert.match(msg, /timeoutMs|invalid/i, String(timeoutMs));
+      assert.doesNotMatch(msg, /Cannot reach a browser/);
+    }
+  });
+
+  test('refs start at 1 and empty strings are rejected', async () => {
+    for (const [name, args] of [['browser_click', { ref: 0 }], ['browser_find', { query: '' }], ['browser_key', { key: '' }]]) {
+      const msg = await invalid(name, args);
+      assert.doesNotMatch(msg, /Cannot reach a browser/, name);
+      assert.match(msg, />=\s*1|too small|at least|invalid/i, name);
+    }
   });
 
   test('tabId must be a string', async () => {

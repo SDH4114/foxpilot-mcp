@@ -23,13 +23,15 @@
   "homepage": "https://github.com/SDH4114/foxpilot-mcp#readme",
   "type": "module",
   "bin": {
-    "foxpilot-mcp": "src/server.js"
+    "foxpilot-mcp": "src/server.js",
+    "foxpilot-launch": "src/launch.js"
   },
   "scripts": {
     "start": "node src/server.js",
     "smoke": "node scripts/smoke.mjs",
-    "launcher": "scripts/make-launcher.sh",
-    "test": "node --test \"test/*.test.js\""
+    "launcher": "node src/launch.js --install",
+    "test": "node --test \"test/*.test.js\"",
+    "start-browser": "node src/launch.js"
   },
   "engines": {
     "node": ">=22.12"

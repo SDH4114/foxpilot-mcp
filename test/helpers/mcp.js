@@ -13,7 +13,7 @@ export async function startServer(env = {}) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [path.join(root, 'src/server.js')],
-    env: { ...clean, FOXPILOT_IDLE_MS: '50', ...env },
+    env: { ...clean, FOXPILOT_IDLE_MS: '50', FOXPILOT_AUTOSTART: '0', ...env },
     stderr: 'ignore',
   });
   const client = new Client({ name: 'unit-test', version: '0' });
