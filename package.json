@@ -28,7 +28,8 @@
   "scripts": {
     "start": "node src/server.js",
     "smoke": "node scripts/smoke.mjs",
-    "launcher": "scripts/make-launcher.sh"
+    "launcher": "scripts/make-launcher.sh",
+    "test": "node --test \"test/*.test.js\""
   },
   "engines": {
     "node": ">=22.12"
@@ -38,5 +39,8 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "puppeteer-core": "^25.19.0",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.4"
   }
 }
